@@ -29,7 +29,7 @@ BEGIN
 
 tracepoint:syscalls:sys_enter_unlink,tracepoint:syscalls:sys_enter_unlinkat {
 //    printf("%-20s", strftime("%F-%T"));
-    time("%H:%M:%S ");
+    time("%Y-%m-%d %H:%M:%S ");
     printf("%-10s %-8d %-16s ", username, pid, comm);
     $m = curtask->real_parent;
         printf("%-8d %-16s ",
@@ -44,7 +44,7 @@ tracepoint:syscalls:sys_enter_unlink,tracepoint:syscalls:sys_enter_unlinkat {
 
 
 kprobe:do_rmdir /comm == "rmdir"/ {
-    time("%H:%M:%S ");
+    time("%Y-%m-%d %H:%M:%S ");
     printf("%-10s %-8d %-16s ", username, pid, comm);
     $m = curtask->real_parent;
         printf("%-8d %-16s ",
