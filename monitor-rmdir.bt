@@ -6,12 +6,15 @@
 /*
 *# BPFTRACE_STRLEN=200  bpftrace monitor-rmdir.bt
 *Attaching 4 probes...
-*Tracing dir deleted . Hit Ctrl-C to end.
-*TIME     PID      COMM             TGID     PCOMM            PATH                 
-*10:31:19 3190101  exe              3190094  runc             /var/run/docker/runtime-runc/moby/d735383dd8f4e3***f8b74/runc.TGm92m
-*10:31:19 9509     containerd-shim  866      containerd                    /tmp/runc-process588089334
-*10:31:19 3190123  rmdir            2911218  bash             /tmp/muyuan          
-*10:31:19 873      dockerd          1        systemd          /var/run/docker/containerd/d735383d***dd113e7c1-stdout
+*Tracing dir/file deleted . Hit Ctrl-C to end.
+*TIME     Username   PID      COMM             TGID     PCOMM            PATH                 
+*18:08:36 root       1838434  exe              1838418  runc             /var/run/docker/runtime-runc/moby/d73*536
+*18:08:36 root       9509     containerd-shim  866      containerd                    /tmp/runc-process029123275
+*18:08:36 root       873      dockerd          1        systemd          /var/run/docker/containerd/d735383*92714
+*18:08:36 root       873      dockerd          1        systemd          /var/run/docker/containerd/d7*14
+*18:08:36 root       873      dockerd          1        systemd          /var/run/docker/containerd/d7*4
+*18:08:36 root       873      dockerd          1        systemd          /var/run/docker/containerd/d*14
+*18:08:37 root       9509     containerd-shim  866      containerd       /run/containerd/io.containerd.runtime.v1.linux/moby/d735383dd8f
 *
 *
 */
@@ -19,14 +22,15 @@
 
 BEGIN
 {
-  printf("Tracing dir deleted . Hit Ctrl-C to end.\n");
-  printf("%-8s %-8s %-16s %-8s %-16s %-21s\n", "TIME", "PID", "COMM", "TGID", "PCOMM","PATH");
+  printf("Tracing dir/file deleted . Hit Ctrl-C to end.\n");
+  printf("%-8s %-10s %-8s %-16s %-8s %-16s %-21s\n", "TIME", "Username",  "PID", "COMM", "TGID", "PCOMM","PATH");
 
 }
 
 tracepoint:syscalls:sys_enter_unlink,tracepoint:syscalls:sys_enter_unlinkat {
+//    printf("%-20s", strftime("%F-%T"));
     time("%H:%M:%S ");
-    printf("%-8d %-16s ", pid, comm);
+    printf("%-10s %-8d %-16s ", username, pid, comm);
     $m = curtask->real_parent;
         printf("%-8d %-16s ",
                $m->tgid,
@@ -41,7 +45,7 @@ tracepoint:syscalls:sys_enter_unlink,tracepoint:syscalls:sys_enter_unlinkat {
 
 kprobe:do_rmdir /comm == "rmdir"/ {
     time("%H:%M:%S ");
-    printf("%-8d %-16s ", pid, comm);
+    printf("%-10s %-8d %-16s ", username, pid, comm);
     $m = curtask->real_parent;
         printf("%-8d %-16s ",
                $m->tgid,
