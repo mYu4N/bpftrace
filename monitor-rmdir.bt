@@ -3,6 +3,20 @@
 #include <linux/sched.h>
 #include <linux/dcache.h>
 
+/*
+*# BPFTRACE_STRLEN=200  bpftrace monitor-rmdir.bt
+*Attaching 4 probes...
+*Tracing dir deleted . Hit Ctrl-C to end.
+*TIME     PID      COMM             TGID     PCOMM            PATH                 
+*10:31:19 3190101  exe              3190094  runc             /var/run/docker/runtime-runc/moby/d735383dd8f4e3***f8b74/runc.TGm92m
+*10:31:19 9509     containerd-shim  866      containerd                    /tmp/runc-process588089334
+*10:31:19 3190123  rmdir            2911218  bash             /tmp/muyuan          
+*10:31:19 873      dockerd          1        systemd          /var/run/docker/containerd/d735383d***dd113e7c1-stdout
+*
+*
+*/
+
+
 BEGIN
 {
   printf("Tracing dir deleted . Hit Ctrl-C to end.\n");
