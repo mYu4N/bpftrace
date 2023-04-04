@@ -1,0 +1,39 @@
+#!/usr/bin/bpftrace
+
+#include <linux/sched.h>
+#include <linux/dcache.h>
+
+BEGIN
+{
+  printf("Tracing dir deleted . Hit Ctrl-C to end.\n");
+  printf("%-8s %-8s %-16s %-8s %-16s %-21s\n", "TIME", "PID", "COMM", "TGID", "PCOMM","PATH");
+
+}
+
+tracepoint:syscalls:sys_enter_unlink,tracepoint:syscalls:sys_enter_unlinkat {
+    time("%H:%M:%S ");
+    printf("%-8d %-16s ", pid, comm);
+    $m = curtask->real_parent;
+        printf("%-8d %-16s ",
+               $m->tgid,
+               $m->comm);
+        $m = $m->parent;
+        if ($m == 0 || $m->tgid == 0) {
+        }
+        printf("%39s\n", str(args->pathname));    
+}
+
+
+
+kprobe:do_rmdir /comm == "rmdir"/ {
+    time("%H:%M:%S ");
+    printf("%-8d %-16s ", pid, comm);
+    $m = curtask->real_parent;
+        printf("%-8d %-16s ",
+               $m->tgid,
+               $m->comm);
+        $m = $m->parent;
+        if ($m == 0 || $m->tgid == 0) {
+        }
+    printf("%-21s\n",  str(arg1));
+    }
