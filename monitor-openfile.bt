@@ -1,0 +1,26 @@
+#!/usr/bin/bpftrace
+/*
+ * Trace the reading of specified files
+ * # bpftrace file.bt /proc/slabinfo
+ *Attaching 3 probes...
+ *Trace who is reading this file... Hit Ctrl-C to end.
+ *TIME                PID    COMM             PATH
+ *2023-04-07 11:03:14 886812 cat              /proc/slabinfo
+ *2023-04-07 11:03:15 887175 cat              /proc/slabinfo
+ *2023-04-07 11:03:16 887232 cat              /proc/slabinfo
+ *2023-04-07 11:03:17 887287 cat              /proc/slabinfo
+ */
+
+BEGIN
+{
+        printf("Trace who is reading this file... Hit Ctrl-C to end.\n");
+        printf("%-19s %-6s %-16s %s\n","TIME", "PID", "COMM", "PATH");
+}
+
+tracepoint:syscalls:sys_enter_open,
+tracepoint:syscalls:sys_enter_openat
+/str(args->filename) == str($1)/
+{
+    time("%Y-%m-%d %H:%M:%S "); 
+    printf("%-6d %-16s %s\n", pid, comm, str(args->filename))
+}
