@@ -41,15 +41,20 @@ tracepoint:syscalls:sys_enter_openat
     printf("%s\n", str(args->filename));
 }
 
-kprobe:do_sys_open
-/str(arg1) == str($1)/
-{
-    time("%Y-%m-%d %H:%M:%S "); 
-    printf("%-10s %-8d %-8d %-8u %-16s ", username, pid, curtask->parent->pid, curtask->nsproxy->pid_ns_for_children->ns.inum, comm);
-    $y = curtask->parent;
-        printf("%-8d %-16s ", $y->pid, $y->comm);
-        $y = $y->parent;
-        if ($y == 0 || $y->pid == 0) {
-        }
-    printf("%s\n", str(arg1));
-}
+/*
+ * if your kernel version less than 4.x (eg: centos7 3.10.xxxx),please open this annotation
+ * kprobe:do_sys_open
+ * /str(arg1) == str($1)/
+ * {
+ *     time("%Y-%m-%d %H:%M:%S "); 
+ *     printf("%-10s %-8d %-8d %-8u %-16s ", username, pid, curtask->parent->pid, curtask->nsproxy->pid_ns_for_children->ns.inum, comm);
+ *     $y = curtask->parent;
+ *         printf("%-8d %-16s ", $y->pid, $y->comm);
+ *         $y = $y->parent;
+ *         if ($y == 0 || $y->pid == 0) {
+ *         }
+ *     printf("%s\n", str(arg1));
+ * }
+* 
+*
+*/
