@@ -9,16 +9,17 @@
  * Attaching 3 probes...
  * Trace who is reading this file... Hit Ctrl-C to end.
  * TIME                Username   PID      COMM             TGID     PCOMM            PATH
- * 2023-04-11 13:56:49 root       1966209  cat              343241   bash             /proc/slabinfo
- * 2023-04-11 13:56:50 root       1966227  cat              343241   bash             /proc/slabinfo
- * 2023-04-11 13:56:51 root       1966252  cat              343241   bash             /proc/slabinfo 
+ * 2023-04-10 13:56:49 root       1966209  cat              343241   bash             /proc/slabinfo
+ * 2023-04-10 13:56:50 root       1966227  cat              343241   bash             /proc/slabinfo
+ * 2023-04-10 13:56:51 root       1966252  cat              343241   bash             /proc/slabinfo 
 */
 
 BEGIN
 {
-        printf("Trace who is reading this file... Hit Ctrl-C to end.\n");
-//#        printf("%-19s %-6s %-16s %s\n","TIME", "PID", "COMM", "PATH");
-        printf("%-19s %-10s %-8s %-16s %-8s %-16s %s\n", "TIME", "Username",  "PID", "COMM", "TGID", "PCOMM","PATH");
+        printf("Trace who is reading file ... Hit Ctrl-C to end.\n");
+//        printf("%-19s %-10s %-8s %-8s %-16s %-8s %-16s %s\n", "TIME", "Username",  "PID", "PPID", "COMM", "TGID", "PCOMM","PATH");
+        printf("%-19s %-10s %-8s %-8s %-16s %-8s %-16s ", "TIME", "Username", "PID", "PPID", "COMM", "TGID", "PCOMM");
+        printf("%s \n", "PATH");
 }
 
 tracepoint:syscalls:sys_enter_open,
@@ -26,11 +27,24 @@ tracepoint:syscalls:sys_enter_openat
 /str(args->filename) == str($1)/
 {
     time("%Y-%m-%d %H:%M:%S "); 
-    printf("%-10s %-8d %-16s ", username, pid, comm);
+    printf("%-10s %-8d %-8d %-16s ", username, pid, curtask->parent->pid, comm);
     $m = curtask->real_parent;
         printf("%-8d %-16s ", $m->tgid, $m->comm);
         $m = $m->parent;
         if ($m == 0 || $m->tgid == 0) {
         }
     printf("%s\n", str(args->filename));
+}
+
+kprobe:do_sys_open
+/str(arg1) == str($1)/
+{
+    time("%Y-%m-%d %H:%M:%S "); 
+    printf("%-10s %-8d %-8d %-16s ", username, pid, curtask->parent->pid, comm);
+    $m = curtask->real_parent;
+        printf("%-8d %-16s ", $m->tgid, $m->comm);
+        $m = $m->parent;
+        if ($m == 0 || $m->tgid == 0) {
+        }
+    printf("%s\n", str(arg1));
 }
