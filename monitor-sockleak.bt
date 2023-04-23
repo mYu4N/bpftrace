@@ -1,0 +1,25 @@
+#!/usr/local/bin/bpftrace
+#include <net/sock.h>
+
+BEGIN
+{
+	printf("Tracing socket create/close. Ctrl-C to end.\n");
+}
+
+
+tracepoint:syscalls:sys_enter_accept,
+tracepoint:syscalls:sys_enter_accept4,
+tracepoint:syscalls:sys_enter_socket,
+kprobe:sock_close
+/comm == str($1)/
+{
+
+	@socket[comm, probe] = count();
+}
+
+interval:s:5
+{
+    time();
+    print(@socket);
+    clear(@socket);
+}
