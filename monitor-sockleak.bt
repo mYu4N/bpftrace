@@ -1,4 +1,17 @@
 #!/usr/local/bin/bpftrace
+
+/*
+* [root@iZ2ze my-bpftrace]# bpftrace monitor-sockleak.bt curl
+* Attaching 6 probes...
+* Tracing socket create/close. Ctrl-C to end.
+* 2023-05-11 13:46:47 
+* @socket[curl, tracepoint:syscalls:sys_enter_socket]: 35
+* @socket[curl, kprobe:sock_close]: 35
+* 2023-05-11 13:46:52 
+* @socket[curl, tracepoint:syscalls:sys_enter_socket]: 28
+* @socket[curl, kprobe:sock_close]: 28
+*/
+
 #include <net/sock.h>
 
 BEGIN
@@ -19,7 +32,7 @@ kprobe:sock_close
 
 interval:s:5
 {
-    time();
+    time("%Y-%m-%d %H:%M:%S \n");
     print(@socket);
     clear(@socket);
 }
