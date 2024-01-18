@@ -1,0 +1,87 @@
+#!/usr/bin/env bpftrace
+#include <linux/skbuff.h>
+#include <linux/ip.h>
+#include <linux/tcp.h>
+#include <linux/sched.h>
+#include <linux/dcache.h>
+#include <linux/fs.h>
+#include <linux/pid_namespace.h>
+#include <linux/nsproxy.h>
+
+
+BEGIN
+{
+  printf("Tracing TCP sockets. Hit Ctrl-C to end.\n");
+        // See include/net/tcp_states.h:
+        @tcp_states[1] = "ESTABLISHED";
+        @tcp_states[2] = "SYN_SENT";
+        @tcp_states[3] = "SYN_RECV";
+        @tcp_states[4] = "FIN_WAIT1";
+        @tcp_states[5] = "FIN_WAIT2";
+        @tcp_states[6] = "TIME_WAIT";
+        @tcp_states[7] = "CLOSE";
+        @tcp_states[8] = "CLOSE_WAIT";
+        @tcp_states[9] = "LAST_ACK";
+        @tcp_states[10] = "LISTEN";
+        @tcp_states[11] = "CLOSING";
+        @tcp_states[12] = "NEW_SYN_RECV";
+}
+
+kprobe:tcp_v4_connect,
+kprobe:tcp_v4_rcv,
+kprobe:tcp_data_queue,
+kprobe:tcp_disconnect,
+kprobe:tcp_shutdown,
+kprobe:tcp_close,
+kprobe:tcp_v4_init_sock,
+kprobe:tcp_read_sock,
+kprobe:tcp_getsockopt,
+kprobe:tcp_v4_syn_recv_sock,
+kprobe:sock_sendmsg,
+kprobe:sock_recvmsg,
+kprobe:sock_register,
+kprobe:sock_create,
+kprobe:tcp_setsockopt,
+kprobe:tcp_v4_destroy_sock,
+kprobe:tcp_abort,
+kprobe:tcp_send_active_reset,
+kprobe:tcp_v4_send_reset,
+kprobe:tcp_sendmsg,
+kprobe:tcp_recvmsg,
+kprobe:napi_gro_receive,
+kprobe:__dev_queue_xmit,
+kprobe:ip_rcv,
+kprobe:ip_rcv_finish,
+kprobe:ip_finish_output,
+kprobe:ip_output,
+kprobe:__netif_receive_skb
+{
+        $skb = ((struct sk_buff *) arg0);
+        $net = $skb->dev->nd_net.net;
+        $netif = $skb->dev->name;
+        $nsid = $net->ns.inum;
+        $sk = $skb->sk; 
+        $inet_family = $sk->__sk_common.skc_family;
+                if ($inet_family == AF_INET) {
+                $daddr = ntop($sk->__sk_common.skc_daddr);
+                $saddr = ntop($sk->__sk_common.skc_rcv_saddr);
+                $sport = $sk->__sk_common.skc_num;
+                $dport = $sk->__sk_common.skc_dport;
+                $dport = ($dport >> 8) | (($dport << 8) & 0x00FF00);
+                $state = $sk->__sk_common.skc_state;
+                $statestr = @tcp_states[$state];
+                if ($dport == $1 || $sport == $1 ) {
+                        @rcvpkg[$1] = nsecs;
+                        time("%H:%M:%S ");
+                        printf("%-16s %-6d %-14s %-8u %-14s %-8d %-6s ", func, pid, comm, curtask->nsproxy->pid_ns_for_children->ns.inum, $netif, cpu, $statestr);
+                        printf("%s:%-15d  %s:%-15d %d ms\n", $saddr, $sport, $daddr, $dport, (nsecs / 1000000) % 1000);
+                        printf("%-39s ", kstack);
+                        printf("\n");
+                }
+        }  
+}
+
+END
+{
+  clear(@tcp_states);
+}
