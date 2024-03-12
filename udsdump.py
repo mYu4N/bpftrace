@@ -1,4 +1,12 @@
 #!/usr/bin/python3
+# python udsdump.py --format string /tmp/php-cgi.sock
+# Start capture Unix socket data... 
+# 10:44:03.524 >>> Process: nginx Namespace: 4026532843 [214069 -> 214120] Path: /tmp/php-cgi.sock Len: 592(592)
+# 10:44:03.524 >>> Process: php-fpm Namespace: 4026532843 [214129 -> 214069] Path: /tmp/php-cgi.sock Len: 112(112)
+# SX-Powered-By: PHP/7.4.33
+# Content-type: text/html; charset=UTF-8
+# 3.1415926535898
+
 import sys
 import time
 import math
@@ -107,6 +115,7 @@ int probe_unix_socket_sendmsg(struct pt_regs *ctx,
     packet->ns_inum = task->nsproxy->pid_ns_for_children->ns.inum;
     __PID_FILTER__
 
+
     iter = &msg->msg_iter;
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(6,0,0)
     if (iter->iter_type == ITER_UBUF) {
@@ -188,7 +197,71 @@ SS_MAX_SEGS_IN_BUFFER = 100
 
 SS_PACKET_F_ERR = 1
 
-def render_text(bpf_text, seg_size, segs_per_msg, sock_path, pid=None):
+outputs = {
+    'string': None,
+    'header': None,
+}
+
+import argparse
+
+parser = argparse.ArgumentParser(
+    description='Capture Unix domain socket data')
+parser.add_argument(
+    '--seg-size', type=int, default=SS_MAX_SEG_SIZE,
+    help='max segment size, increase this number'
+         ' if packet size is longer than captured size')
+parser.add_argument(
+    '--segs-per-msg', type=int, default=SS_MAX_SEGS_PER_MSG,
+    help='max number of iovec segments')
+parser.add_argument(
+    '--segs-in-buffer', type=int, default=SS_MAX_SEGS_IN_BUFFER,
+    help='max number of segs in perf event buffer,'
+         ' increase this number if message is dropped')
+parser.add_argument(
+    '--format', choices=outputs.keys(), default='header',
+    help='output format')
+parser.add_argument(
+    '--output', default='/dev/stdout',
+    help='output file')
+parser.add_argument(
+    '--pid', default=None,
+    help='Pid filter, default no filter')
+parser.add_argument(
+    '--cmd', default=None,
+    help='Command filter, default no filter')
+parser.add_argument(
+    '--top', default=None, type=int,
+    help='display topn unix socket data ,defautl top5')
+parser.add_argument(
+    '--bpf', action='store_true',
+    help=argparse.SUPPRESS)
+parser.add_argument(
+    '--disassemble', action='store_true',
+    help=argparse.SUPPRESS)
+parser.add_argument(
+    'sock',
+    help="\n".join([
+        "unix socket path. \n",
+        "# python udsdump.py --format string /tmp/php-cgi.sock. \n",
+        " Start capture Unix socket data.... \n",
+        "10:20:58.282 >>> Process: nginx Namespace: 4026532843 [214068 -> 214120] Path: /tmp/php-cgi.sock Len: 592(592). \n",
+        "10:20:58.283 >>> Process: php-fpm Namespace: 4026532843 [214127 -> 214068] Path: /tmp/php-cgi.sock Len: 112(112). \n",
+        "SX-Powered-By: PHP/7.4.33. \n",
+        "Content-type: text/html; charset=UTF-8. \n",
+        "3.1415926535898. \n",
+        "Matches all sockets starting with given path if it ends with \'*\'.",
+        "Note that the path must be the same string used in the application,",
+        "instead of the actual file path.",
+        "If the application used a relative path, the same relative path should be used.",
+        "If the application runs inside a container, the path inside the container should be used.",
+    ]))
+
+args = parser.parse_args()
+cmd_filter = args.cmd
+top_filter = args.top
+
+
+def render_text(bpf_text, seg_size, segs_per_msg, sock_path, pid=None, cmd=None, top=5):
     path_filter, path_len, path_len_u64 = build_filter(sock_path)
     replaces = {
         '__SS_MAX_SEG_SIZE__': seg_size,
@@ -207,6 +280,7 @@ def render_text(bpf_text, seg_size, segs_per_msg, sock_path, pid=None):
     for k, v in replaces.items():
         bpf_text = bpf_text.replace(k, str(v))
     return bpf_text
+
 
 def build_filter(sock_path):
     sock_path_bytes = sock_path.encode()
@@ -228,7 +302,7 @@ def build_filter(sock_path):
     path_len_u64 = (path_len + 7) // 8
     sock_path_bytes += b'\0' * (path_len_u64 * 8 - path_len)
     sock_path_u64s = [
-        struct.unpack('Q', sock_path_bytes[i*8:(i+1)*8])[0]
+        struct.unpack('Q', sock_path_bytes[i * 8:(i + 1) * 8])[0]
         for i in range(path_len_u64)
     ]
 
@@ -240,6 +314,7 @@ def build_filter(sock_path):
     filter += ') match = 1;'
 
     return filter, path_len, path_len_u64
+
 
 class Packet(ct.Structure):
     _pack_ = 1
@@ -254,11 +329,13 @@ class Packet(ct.Structure):
         # variable length data
     ]
 
-PCAP_LINK_TYPE = 147    # USER_0
+
+PCAP_LINK_TYPE = 147  # USER_0
 
 PACKET_SIZE = ct.sizeof(Packet)
 
 packet_count = 0
+
 
 def parse_event(event, size):
     global packet_count
@@ -269,7 +346,7 @@ def parse_event(event, size):
 
     size -= PACKET_SIZE
     data_len = packet.len
-    if  data_len > size:
+    if data_len > size:
         data_len = size
 
     data_type = ct.c_char * data_len
@@ -277,92 +354,54 @@ def parse_event(event, size):
 
     return packet, data
 
+
 def print_header(packet, data):
     ts = time.time()
-    ts = time.strftime('%H:%M:%S', time.localtime(ts)) + '.%03d' % (ts%1 * 1000)
+    ts = time.strftime('%H:%M:%S', time.localtime(ts)) + '.%03d' % (ts % 1 * 1000)
 
-    print('\n %s >>> process: %s ns: %d [%d -> %d] path: %s len: %d(%d)' % (
+    print('\n %s >>> Process: %s Namespace: %d [%d -> %d] Path: %s Len: %d(%d)' % (
         ts, packet.comm.decode(), packet.ns_inum, packet.pid, packet.peer_pid,
         packet.path.decode(), len(data), packet.len))
 
-def string_output(cpu, event, size):
+
+def string_output(cpu, event, size, cmd_filter=cmd_filter, top_filter=top_filter):
     packet, data = parse_event(event, size)
     print_header(packet, data)
     if packet.flags & SS_PACKET_F_ERR:
         print('error')
-    data_lines = str(data.raw, encoding='ascii', errors='ignore').splitlines()
-    top_lines = data_lines[:3]
-    top_data_str = '\n'.join(top_lines)
-    print(top_data_str, end='', flush=True)
+    if cmd_filter is None or packet.comm.decode() == cmd_filter:
+        raw = str(data.raw, encoding='ascii', errors='ignore')
+        if top_filter:
+            data_lines = raw.split('\n')
+            top_lines = data_lines[:top_filter]
+            raw = '\n'.join(top_lines)
+        print(raw, end='', flush=True)
+
+
+def header_output(cpu, event, size):
+    packet, data = parse_event(event, size)
+    print_header(packet, data)
+    if packet.flags & SS_PACKET_F_ERR:
+        print('error')
+
+
+outputs['string'] = string_output
+outputs['header'] = header_output
+
 
 def ascii(c):
     if c < 32 or c > 126:
         return '.'
     return chr(c)
 
-def hex_print(data):
-    for i in range(0, len(data), 16):
-        line = '{:04x}'.format(i)
-        line += '  '
-        line += '{:<23s}'.format(' '.join('%02x' % x for x in data[i:i+8]))
-        line += '  '
-        line += '{:<23s}'.format(' '.join('%02x' % x for x in data[i+8:i+16]))
-        line += '  '
-        line += ''.join(ascii(x) for x in data[i:i+16])
-        print(line)
-
-def hexstring_print(data):
-    chunks = ['\\x{:02x}'.format(i) for i in bytes(data)]
-    print(''.join(chunks))
-
-def hex_output(cpu, event, size):
-    packet, data = parse_event(event, size)
-    print_header(packet, data)
-    if packet.flags & SS_PACKET_F_ERR:
-        print('error')
-    hex_print(data)
-
-def hexstring_output(cpu, event, size):
-    packet, data = parse_event(event, size)
-    print_header(packet, data)
-    if packet.flags & SS_PACKET_F_ERR:
-        print('error')
-    hexstring_print(data)
-
-def pcap_write_header(snaplen, network):
-    header = struct.pack('=IHHiIII', 0xa1b2c3d4, 2, 4, 0, 0, snaplen, network)
-    sys.stdout.write(header)
-
-def pcap_write_record(ts_sec, ts_usec, orig_len, data):
-    header = struct.pack('=IIII', ts_sec, ts_usec, len(data), orig_len)
-    sys.stdout.write(header)
-    sys.stdout.write(data)
-
-def pcap_output(cpu, event, size):
-    packet, data = parse_event(event, size)
-
-    ts = time.time()
-    ts_sec = int(ts)
-    ts_usec = int((ts % 1) * 10**6)
-    header = struct.pack('>QQ', packet.peer_pid, packet.pid)
-
-    data = header + data
-    size = len(header) + packet.len
-    pcap_write_record(ts_sec, ts_usec, size, data)
-
-outputs = {
-    'hex': hex_output,
-    'hexstring': hexstring_output,
-    'string': string_output,
-    'pcap': pcap_output,
-}
 
 def sig_handler(signum, stack):
     print('\n%d packets captured' % packet_count, file=sys.stderr)
     sys.exit(signum)
 
+
 def main(args):
-    text = render_text(bpf_text, args.seg_size, args.segs_per_msg, args.sock, args.pid)
+    text = render_text(bpf_text, args.seg_size, args.segs_per_msg, args.sock, args.pid, args.cmd, args.top)
 
     if args.bpf:
         print(text)
@@ -387,57 +426,13 @@ def main(args):
     signal.signal(signal.SIGINT, sig_handler)
     signal.signal(signal.SIGTERM, sig_handler)
 
-    if args.format == 'pcap':
-        sys.stdout = open(args.output, 'wb')
-        pcap_write_header(args.seg_size, PCAP_LINK_TYPE)
-    else:
-        if args.output != '/dev/stdout':
-            sys.stdout = open(args.output, 'w')
+    if args.output != '/dev/stdout':
+        sys.stdout = open(args.output, 'w')
 
     print('Start capture Unix socket data... ', file=sys.stderr)
     while 1:
         b.perf_buffer_poll()
 
-if __name__ == '__main__':
-    import argparse
 
-    parser = argparse.ArgumentParser(
-        description='Dump unix domain socket traffic')
-    parser.add_argument(
-        '--seg-size', type=int, default=SS_MAX_SEG_SIZE,
-        help='max segment size, increase this number'
-             ' if packet size is longer than captured size')
-    parser.add_argument(
-        '--segs-per-msg', type=int, default=SS_MAX_SEGS_PER_MSG,
-        help='max number of iovec segments')
-    parser.add_argument(
-        '--segs-in-buffer', type=int, default=SS_MAX_SEGS_IN_BUFFER,
-        help='max number of segs in perf event buffer,'
-             ' increase this number if message is dropped')
-    parser.add_argument(
-        '--format', choices=outputs.keys(), default='hex',
-        help='output format')
-    parser.add_argument(
-        '--output', default='/dev/stdout',
-        help='output file')
-    parser.add_argument(
-        '--pid', default=None,
-        help='Pid filter, default no filter')
-    parser.add_argument(
-        '--bpf', action='store_true',
-        help=argparse.SUPPRESS)
-    parser.add_argument(
-        '--disassemble', action='store_true',
-        help=argparse.SUPPRESS)
-    parser.add_argument(
-        'sock',
-        help=" ".join([
-            "unix socket path.",
-            "Matches all sockets starting with given path if it ends with \'*\'.",
-            "Note that the path must be the same string used in the application,",
-            "instead of the actual file path.",
-            "If the application used a relative path, the same relative path should be used.",
-            "If the application runs inside a container, the path inside the container should be used.",
-        ]))
-    args = parser.parse_args()
+if __name__ == '__main__':
     main(args)
