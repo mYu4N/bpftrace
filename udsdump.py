@@ -1,11 +1,4 @@
 #!/usr/bin/python3
-# python udsdump.py --format string /tmp/php-cgi.sock
-# Start capture Unix socket data... 
-# 10:44:03.524 >>> Process: nginx Namespace: 4026532843 [214069 -> 214120] Path: /tmp/php-cgi.sock Len: 592(592)
-# 10:44:03.524 >>> Process: php-fpm Namespace: 4026532843 [214129 -> 214069] Path: /tmp/php-cgi.sock Len: 112(112)
-# SX-Powered-By: PHP/7.4.33
-# Content-type: text/html; charset=UTF-8
-# 3.1415926535898
 
 import sys
 import time
@@ -29,8 +22,8 @@ bpf_text = '''
 #include <linux/ns_common.h>
 #include <linux/pid_namespace.h>
 
-#define SS_MAX_SEG_SIZE     __SS_MAX_SEG_SIZE__
-#define SS_MAX_SEGS_PER_MSG __SS_MAX_SEGS_PER_MSG__
+#define SS_MAX_SEG_SIZE 51200
+#define SS_MAX_SEGS_PER_MSG 10
 
 #define SS_PACKET_F_ERR     1
 
@@ -191,8 +184,7 @@ int probe_unix_socket_sendmsg(struct pt_regs *ctx,
 TASK_COMM_LEN = 16
 UNIX_PATH_MAX = 108
 
-SS_MAX_SEG_SIZE = 1024 * 50
-SS_MAX_SEGS_PER_MSG = 10
+
 SS_MAX_SEGS_IN_BUFFER = 100
 
 SS_PACKET_F_ERR = 1
@@ -207,22 +199,8 @@ import argparse
 parser = argparse.ArgumentParser(
     description='Capture Unix domain socket data')
 parser.add_argument(
-    '--seg-size', type=int, default=SS_MAX_SEG_SIZE,
-    help='max segment size, increase this number'
-         ' if packet size is longer than captured size')
-parser.add_argument(
-    '--segs-per-msg', type=int, default=SS_MAX_SEGS_PER_MSG,
-    help='max number of iovec segments')
-parser.add_argument(
-    '--segs-in-buffer', type=int, default=SS_MAX_SEGS_IN_BUFFER,
-    help='max number of segs in perf event buffer,'
-         ' increase this number if message is dropped')
-parser.add_argument(
     '--format', choices=outputs.keys(), default='header',
-    help='output format')
-parser.add_argument(
-    '--output', default='/dev/stdout',
-    help='output file')
+    help='output format,support string or header')
 parser.add_argument(
     '--pid', default=None,
     help='Pid filter, default no filter')
@@ -233,15 +211,9 @@ parser.add_argument(
     '--top', default=None, type=int,
     help='display topn unix socket data ,defautl top5')
 parser.add_argument(
-    '--bpf', action='store_true',
-    help=argparse.SUPPRESS)
-parser.add_argument(
-    '--disassemble', action='store_true',
-    help=argparse.SUPPRESS)
-parser.add_argument(
     'sock',
     help="\n".join([
-        "unix socket path. \n",
+        "unix socket path. Absolute path, regardless of where the socket runs \n",
         "# python udsdump.py --format string /tmp/php-cgi.sock. \n",
         " Start capture Unix socket data.... \n",
         "10:20:58.282 >>> Process: nginx Namespace: 4026532843 [214068 -> 214120] Path: /tmp/php-cgi.sock Len: 592(592). \n",
@@ -249,11 +221,6 @@ parser.add_argument(
         "SX-Powered-By: PHP/7.4.33. \n",
         "Content-type: text/html; charset=UTF-8. \n",
         "3.1415926535898. \n",
-        "Matches all sockets starting with given path if it ends with \'*\'.",
-        "Note that the path must be the same string used in the application,",
-        "instead of the actual file path.",
-        "If the application used a relative path, the same relative path should be used.",
-        "If the application runs inside a container, the path inside the container should be used.",
     ]))
 
 args = parser.parse_args()
@@ -261,11 +228,9 @@ cmd_filter = args.cmd
 top_filter = args.top
 
 
-def render_text(bpf_text, seg_size, segs_per_msg, sock_path, pid=None, cmd=None, top=5):
+def render_text(bpf_text, sock_path, pid=None, cmd=None, top=5):
     path_filter, path_len, path_len_u64 = build_filter(sock_path)
     replaces = {
-        '__SS_MAX_SEG_SIZE__': seg_size,
-        '__SS_MAX_SEGS_PER_MSG__': segs_per_msg,
         '__NUM_CPUS__': multiprocessing.cpu_count(),
         '__PATH_LEN__': path_len,
         '__PATH_LEN_U64__': max(path_len_u64, 1),
@@ -401,15 +366,7 @@ def sig_handler(signum, stack):
 
 
 def main(args):
-    text = render_text(bpf_text, args.seg_size, args.segs_per_msg, args.sock, args.pid, args.cmd, args.top)
-
-    if args.bpf:
-        print(text)
-        return
-
-    if args.disassemble:
-        BPF(text=text, debug=8)
-        return
+    text = render_text(bpf_text, args.sock, args.pid, args.cmd, args.top)
 
     b = BPF(text=text)
     b.attach_kprobe(
@@ -417,7 +374,7 @@ def main(args):
     b.attach_kprobe(
         event='unix_dgram_sendmsg', fn_name='probe_unix_socket_sendmsg')
 
-    npages = args.seg_size * args.segs_in_buffer / resource.getpagesize()
+    npages = 51200 * 100 / resource.getpagesize()
     npages = 2 ** math.ceil(math.log(npages, 2))
 
     output_fn = outputs[args.format]
@@ -426,13 +383,9 @@ def main(args):
     signal.signal(signal.SIGINT, sig_handler)
     signal.signal(signal.SIGTERM, sig_handler)
 
-    if args.output != '/dev/stdout':
-        sys.stdout = open(args.output, 'w')
-
     print('Start capture Unix socket data... ', file=sys.stderr)
     while 1:
         b.perf_buffer_poll()
-
 
 if __name__ == '__main__':
     main(args)
