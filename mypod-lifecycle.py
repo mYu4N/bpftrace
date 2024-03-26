@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 #author muyuan.y yufeng.s
 # python3 mypod-lifecycle.py --podname jpprod-oversea-user-message-server-0 --logfile messages --eventlevel Info,Normal,Warning,Error,Fatal
 
@@ -19,9 +20,9 @@ plt.rcParams['axes.unicode_minus'] = False
 parser = argparse.ArgumentParser(description="display pod lifecycle")
 parser.add_argument("--podname", default=None, type=str, help="name of pod, default=None")
 parser.add_argument("--logfile", default=None, type=str, help="log file path of pod, default=None")
-parser.add_argument("--eventlevel", default="Normal,Warning,Error,Fatal",
+parser.add_argument("--eventlevel", default="Info,Normal,Warning,Error,Fatal",
                     type=str,
-                    help="event level configure in POD_EVENT_CONFIG::level_desc, default=Normal,Warning,Error,Fatal")
+                    help="event level configure in POD_EVENT_CONFIG::level_desc, default=Info,Normal,Warning,Error,Fatal")
 parser.add_argument("--loggerlevel", default="INFO", type=str, help="script runtime logger level, default=INFO")
 args = parser.parse_args()
 
@@ -93,6 +94,10 @@ POD_EVENT_CONFIG = {
         'alias': 'ADD POD',
         'level_desc': "Normal"
     },
+    'SyncLoop \(ADD,': {
+        'alias': 'ADD POD',
+        'level_desc': "Normal"
+    },
     'SyncLoop UPDATE': {
         'alias': 'Update POD',
         'level_desc': "Normal"
@@ -101,12 +106,34 @@ POD_EVENT_CONFIG = {
         'alias': 'Delete POD',
         'level_desc': "Normal"
     },
+    'SyncLoop \(DELETE': {
+        'alias': 'Delete POD',
+        'level_desc': "Normal"
+    },
     'Probe succeeded': {
         'bbox_color_show': 'whitesmoke',
         'level_desc': "Info"
     },
+    # 'Probe target container not found': {
+    #     'alias': 'Probe not found',
+    #     'level_desc': "Normal"
+    # },    
+    # 'Waiting for volumes to attach and mount for pod': {
+    #     'bbox_color_show': 'whitesmoke',
+    #     'alias': 'Wait volume',
+    #     'level_desc': "Info"
+    # },
+    # 'All volumes are attached and mounted for pod': {
+    #     'bbox_color_show': 'whitesmoke',
+    #     'alias': 'volume mount ok',
+    #     'level_desc': "Info"
+    # },
     'Reason:ContainersNotReady': {
         'alias': 'ContainersNotReady',
+        'level_desc': "Warning"
+    },
+    'Container of pod is not in the desired state and shall be started': {
+        'alias': 'ContainersStateNotOK-shallbestart',
         'level_desc': "Warning"
     },
     'Readiness probe failed': {
@@ -116,6 +143,25 @@ POD_EVENT_CONFIG = {
     'Liveness probe failed': {
         'alias': 'Liveness failed',
         'level_desc': "Warning"
+    },
+    'Startup probe failed': {
+        'alias': 'Startup failed',
+        'level_desc': "Warning"
+    },
+    'Startup probe  .*succeeded': {
+        'bbox_color_show': 'whitesmoke',
+        'alias': 'Startup OK',
+        'level_desc': "Info"
+    },
+    'Readiness probe .*succeeded': {
+        'bbox_color_show': 'whitesmoke',
+        'alias': 'Readiness OK',
+        'level_desc': "Info"
+    },
+    'Liveness probe .*succeeded': {
+        'bbox_color_show': 'whitesmoke',
+        'alias': 'Liveness OK',
+        'level_desc': "Info"
     },
     'Killing unwanted container': {
         'alias': 'Killing unwanted',
@@ -141,6 +187,14 @@ POD_EVENT_CONFIG = {
         'alias': 'Pod Recreated',
         'level_desc': "Warning"
     },
+    'pods ranked for eviction': {
+        'alias': 'Pod eviction',
+        'level_desc': "Warning"
+    },
+    'The node was low on resource': {
+        'alias': 'NodeNoResource',
+        'level_desc': "Warning"
+    },
     'Pod has been deleted and must be killed': {
         'alias': 'Pod delete & kill',
         'level_desc': "Normal"
@@ -148,6 +202,106 @@ POD_EVENT_CONFIG = {
     'Pod does not exist on the server': {
         'alias': 'Pod not exist',
         'level_desc': "Normal"
+    },
+    'Successfully pulled image': {
+        'alias': 'Pulled Image',
+        'level_desc': "Normal"
+    },
+    'Creating hosts mount for container': {
+        'alias': 'Create Host mount',
+        'level_desc': "Normal"
+    },
+    'Bound SubPath': {
+        'alias': 'Bound SubPath',
+        'level_desc': "Normal"
+    },
+    'Added container': {
+        'alias': 'ADD-container',
+        'level_desc': "Normal"
+    },
+    'Type:ContainerStarted': {
+        'alias': 'ContainerStarted',
+        'level_desc': "Normal"
+    },
+    'Pod is terminated, but some volumes have not been cleaned up': {
+        'alias': 'Pod volumes not cleaned',
+        'level_desc': "Warning"
+    },
+    'failed to start container ': {
+        'alias': 'Failed to start container',
+        'level_desc': "Warning"
+    },
+    'Back-off restarting failed ': {
+        'alias': 'backoff restart',
+        'level_desc': "Warning"
+    },
+    'back-off 5m0s restarting failed': {
+        'alias': 'backoff restart 5m failed',
+        'level_desc': "Warning"
+    },
+    'Checking backoff for container in pod': {
+        'alias': 'Checking backoff',
+        'level_desc': "Warning"
+    },
+    'Job has reached the specified backoff limit': {
+        'alias': 'BackoffLimitExceeded',
+        'level_desc': "Warning"
+    },
+    'containerd.sock: connect: no such file or directory': {
+        'alias': 'ContainerGCFailed',
+        'level_desc': "Warning"
+    },
+    'Job was active longer than specified deadline': {
+        'alias': 'DeadlineExceeded',
+        'level_desc': "Warning"
+    },
+    'Failed to pull image': {
+        'alias': 'Failed pull image',
+        'level_desc': "Warning"
+    },
+    'EXT4-fs error device': {
+        'alias': 'Ext4Error',
+        'level_desc': "Warning"
+    },
+    'unable to ensure pod container exists: failed to create container for': {
+        'alias': 'FailedCreatePodContainer',
+        'level_desc': "Warning"
+    },
+    'Failed to create pod sandbox': {
+        'alias': 'FailedCreatePodSandBox',
+        'level_desc': "Warning"
+    },
+    'error killing pod: failed to': {
+        'alias': 'FailedKillPod',
+        'level_desc': "Warning"
+    },
+    'Unable to attach or mount volumes': {
+        'alias': 'FailedMount',
+        'level_desc': "Warning"
+    },
+    'PreStopHook failed': {
+        'alias': 'FailedPreStopHook',
+        'level_desc': "Warning"
+    },
+    'Error updating Endpoint Slices for Service': {
+        'alias': 'FailedToUpdateEndpointSlices',
+        'level_desc': "Warning"
+    },
+    'build service stack model error: build servicePortToServerGroup': {
+        'alias': 'FailedUpdateEndpoints',
+        'level_desc': "Warning"
+    },
+    'invalid capacity 0 on image filesystem': {
+        'alias': 'InvalidDiskCapacity',
+        'level_desc': "Warning"
+    },
+    'network is not ready: container runtime network not ready': {
+        'alias': 'NetworkNotReady',
+        'level_desc': "Warning"
+    },
+    'Node is not ready': {
+        'alias': 'NodeNotReady',
+        'level_desc': "Warning"
     },
 }
 
@@ -379,12 +533,12 @@ if __name__ == '__main__':
             if args.podname in line:
                 for keyword in target_keywords:
                     if POD_EVENT_CONFIG.get(keyword).get('level_desc') in event_level_filter:
-                        match = re.search(r'(\w{3} \d{2} \d{2}:\d{2}:\d{2}).+' + '{}'.format(keyword), line)
-                        if match:
-                            # dates.append(match.group(1))
-                            dates.append(datetime.datetime.strptime(match.group(1), "%b %d %H:%M:%S"))
-                            events.append(keyword)
-                            break
+                       match = re.search(r'(\d{4} \d{2}:\d{2}:\d{2}).+' + '{}'.format(keyword), line)
+                       if match:
+                          # dates.append(match.group(1))
+                          dates.append(datetime.datetime.strptime(match.group(1), "%m%d %H:%M:%S"))
+                          events.append(keyword)
+                          break
     if len(dates) == len(events) != 0:
         draw_time_text(events, dates)
     else:
