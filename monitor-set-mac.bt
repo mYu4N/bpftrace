@@ -1,0 +1,52 @@
+#!/usr/bin/env bpftrace
+#include <linux/skbuff.h>
+#include <linux/ip.h>
+#include <linux/tcp.h>
+#include <linux/sched.h>
+#include <linux/dcache.h>
+#include <linux/fs.h>
+#include <linux/pid_namespace.h>
+#include <linux/nsproxy.h>
+#include <linux/netdevice.h>
+
+BEGIN
+{
+  printf("Tracing register network device. Hit Ctrl-C to end.\n");
+}
+
+kprobe:register_netdevice
+{
+  $dev = (struct net_device *)arg0;
+  $mac = $dev->dev_addr;
+  $name = $dev->name;
+
+  time("%H:%M:%S ");
+//  printf("%s %d %s %s %r  %s %s\n",
+  printf("%s %d %s %s %r \n",
+         func,
+         pid,
+         comm,
+         $name,
+         buf($mac, 6));
+//         ustack,
+//         kstack);
+}
+
+kprobe:dev_set_mac_address
+{
+  $newmac = (struct sockaddr *) arg1;
+  $dev = (struct net_device *)arg0;
+  $oldmac = $dev->dev_addr;
+  $name = $dev->name;
+
+  time("%H:%M:%S ");
+  printf("%s %d %s %s %r %r \n",
+         func,
+         pid,
+         comm,
+         $name,
+         buf($oldmac, 6),
+         buf($newmac->sa_data, 6));
+//         ustack,
+//         kstack);
+}
