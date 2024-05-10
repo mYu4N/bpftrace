@@ -1,0 +1,41 @@
+#!/usr/bin/env bpftrace
+#include <linux/skbuff.h>
+#include <linux/ip.h>
+#include <linux/udp.h>
+
+BEGIN
+{
+  printf("Tracing UDP DNS Resolv. Hit Ctrl-C to end.\n");
+}
+
+kprobe:udp_sendmsg
+{
+  $sk = (struct sock *)arg0;
+  $inet_family = $sk->__sk_common.skc_family;
+  $daddr = ntop(0);
+  $saddr = ntop(0);
+  $lport = 0;
+  $dport = 0;
+  if ($inet_family == AF_INET) {
+    $daddr = ntop($sk->__sk_common.skc_daddr);
+    $saddr = ntop($sk->__sk_common.skc_rcv_saddr);
+    $lport = $sk->__sk_common.skc_num;
+    $dport = $sk->__sk_common.skc_dport;
+    $dport = ($dport >> 8) | (($dport << 8) & 0x00FF00);
+  }
+  if ($dport == $1 || $lport == $1 ) {
+     time("%H:%M:%S ");
+     printf("%-16s %-8d %-8d %-10s ", func, pid, cpu, comm);
+         $m = curtask->real_parent;
+        printf("%-8d %-16s ",
+               $m->tgid,
+               $m->comm);
+        $m = $m->parent;
+        if ($m == 0 || $m->tgid == 0) {
+        }
+     printf("%-10s:%-5d %-10s:%-5d ", $daddr, $dport, $saddr, $lport);
+//     printf("%-39s ", kstack);
+     printf("\n");
+  }
+   return;
+}
