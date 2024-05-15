@@ -2,6 +2,8 @@
 #include <linux/skbuff.h>
 #include <linux/ip.h>
 #include <linux/udp.h>
+#include<linux/sched.h>
+#include<linux/mm_types.h>
 
 BEGIN
 {
@@ -10,6 +12,10 @@ BEGIN
 
 kprobe:udp_sendmsg
 {
+  @ppcomm=curtask->real_parent->real_parent->comm;
+  @pppid=curtask->real_parent->real_parent->pid;
+  @pcomm=curtask->real_parent->comm;
+  @ppid=curtask->real_parent->pid;
   $sk = (struct sock *)arg0;
   $inet_family = $sk->__sk_common.skc_family;
   $daddr = ntop(0);
@@ -26,16 +32,18 @@ kprobe:udp_sendmsg
   if ($dport == $1 || $lport == $1 ) {
      time("%H:%M:%S ");
      printf("%-16s %-8d %-8d %-10s ", func, pid, cpu, comm);
-         $m = curtask->real_parent;
-        printf("%-8d %-16s ",
-               $m->tgid,
-               $m->comm);
-        $m = $m->parent;
-        if ($m == 0 || $m->tgid == 0) {
-        }
+     printf("pppppcomm: %s %d %s %d \n", @pcomm, @ppid, @ppcomm, @pppid);
      printf("%-10s:%-5d %-10s:%-5d ", $daddr, $dport, $saddr, $lport);
 //     printf("%-39s ", kstack);
      printf("\n");
   }
    return;
+}
+
+
+END{
+    clear(@ppcomm);
+    clear(@pppid);
+    clear(@pcomm);
+    clear(@ppid);
 }
