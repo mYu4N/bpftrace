@@ -31,8 +31,8 @@ kprobe:udp_sendmsg
   }
   if ($dport == $1 || $lport == $1 ) {
      time("%H:%M:%S ");
-     printf("%-16s %-8d %-8d %-10s ", func, pid, cpu, comm);
-     printf("pppppcomm: %s %d %s %d \n", @pcomm, @ppid, @ppcomm, @pppid);
+     printf("%-16s %-8d %s:%d <== ", func, cpu, comm, pid);
+     printf("%s:%d <== %s:%d \n", @pcomm, @ppid, @ppcomm, @pppid);
      printf("%-10s:%-5d %-10s:%-5d ", $daddr, $dport, $saddr, $lport);
 //     printf("%-39s ", kstack);
      printf("\n");
