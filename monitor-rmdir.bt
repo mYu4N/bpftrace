@@ -43,7 +43,7 @@ tracepoint:syscalls:sys_enter_unlink,tracepoint:syscalls:sys_enter_unlinkat {
 
 
 
-kprobe:do_rmdir /comm == "rmdir"/ {
+kprobe:do_rmdir /comm == "rmdir" || comm == "rm"/ {
     time("%Y-%m-%d %H:%M:%S ");
     printf("%-10s %-8d %-16s ", username, pid, comm);
     $m = curtask->real_parent;
