@@ -8,14 +8,10 @@
 *Attaching 4 probes...
 *Tracing dir/file deleted . Hit Ctrl-C to end.
 *TIME     Username   PID      COMM             TGID     PCOMM            PATH                 
-*18:08:36 root       1838434  exe              1838418  runc             /var/run/docker/runtime-runc/moby/d73*536
-*18:08:36 root       9509     containerd-shim  866      containerd                    /tmp/runc-process029123275
-*18:08:36 root       873      dockerd          1        systemd          /var/run/docker/containerd/d735383*92714
-*18:08:36 root       873      dockerd          1        systemd          /var/run/docker/containerd/d7*14
-*18:08:36 root       873      dockerd          1        systemd          /var/run/docker/containerd/d7*4
-*18:08:36 root       873      dockerd          1        systemd          /var/run/docker/containerd/d*14
-*18:08:37 root       9509     containerd-shim  866      containerd       /run/containerd/io.containerd.runtime.v1.linux/moby/d735383dd8f
-*
+*2024-07-17 10:54:46 root       2624     containerd       1        systemd          678639763e5a10b4651dc9162dfe4c435320faa80d187fc8f3fe16125f790faf-stdout
+*2024-07-17 10:54:46 root       2624     containerd       1        systemd                                       4080310050
+*2024-07-17 10:54:46 root       2575413  rm               2575410  bash                                        /tmp/my.file
+*2024-07-17 10:54:46 root       2575414  rmdir            2575410  bash                                         /tmp/my.dir*
 *
 */
 
@@ -27,8 +23,7 @@ BEGIN
 
 }
 
-tracepoint:syscalls:sys_enter_unlink,tracepoint:syscalls:sys_enter_unlinkat {
-//    printf("%-20s", strftime("%F-%T"));
+ tracepoint:syscalls:sys_enter_unlink,tracepoint:syscalls:sys_enter_unlinkat,tracepoint:syscalls:sys_enter_rmdir {
     time("%Y-%m-%d %H:%M:%S ");
     printf("%-10s %-8d %-16s ", username, pid, comm);
     $m = curtask->real_parent;
@@ -41,17 +36,3 @@ tracepoint:syscalls:sys_enter_unlink,tracepoint:syscalls:sys_enter_unlinkat {
         printf("%39s\n", str(args->pathname));    
 }
 
-
-
-kprobe:do_rmdir /comm == "rmdir" || comm == "rm"/ {
-    time("%Y-%m-%d %H:%M:%S ");
-    printf("%-10s %-8d %-16s ", username, pid, comm);
-    $m = curtask->real_parent;
-        printf("%-8d %-16s ",
-               $m->tgid,
-               $m->comm);
-        $m = $m->parent;
-        if ($m == 0 || $m->tgid == 0) {
-        }
-    printf("%-21s\n",  str(arg1));
-    }
