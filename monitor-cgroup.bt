@@ -4,50 +4,34 @@
 #include <linux/fs.h>
 #include <linux/pid_namespace.h>
 #include <linux/nsproxy.h>
-
+#include <linux/kernfs.h>
 
 
 BEGIN
 {
         printf("Trace cgroup file/dir create or delete... Hit Ctrl-C to end.\n");
-        printf("%-19s %-10s %-8s %-8s %-16s", "TIME", "Username", "PID", "PPID", "COMM");
-        printf(" %-16s %s \n", "PCOMM","PATH/FNAME");
+        printf("%-19s %-10s %-8s", "TIME", "PID", "COMM");
+        printf(" %-16s %s \n", "Probe","PATH/FNAME");
 }
 
 
-kprobe:kernfs_create_dir_ns
-{
-    time("%Y-%m-%d %H:%M:%S "); 
-    printf("%-10s %-8d %-8d %-16s ", username, pid, curtask->parent->pid, comm);
-    $m = curtask->real_parent;
-        printf(" %-16s ", $m->comm);
-        $m = $m->parent;
-        if ($m == 0) {
-        }
-    printf("%16s %s\n", probe, str(arg1));
-}
 
 kprobe:__kernfs_create_file
 {
     time("%Y-%m-%d %H:%M:%S "); 
-    printf("%-10s %-8d %-8d %-16s ", username, pid, curtask->parent->pid, comm);
-    $m = curtask->real_parent;
-        printf(" %-16s ", $m->comm);
-        $m = $m->parent;
-        if ($m == 0) {
-        }
-    printf("%16s %s\n", probe, str(arg1));
+	$kn = (struct kernfs_node *)arg0;
+    printf(" %-8d %-16s ", pid, comm);
+    printf("%16s %s/%s/%s\n", probe, str($kn->parent->name), str($kn->name), str(arg1));
 }
 
-
-tracepoint:syscalls:sys_enter_unlink,tracepoint:syscalls:sys_enter_unlinkat
+kprobe:kernfs_remove
 {
-    time("%Y-%m-%d %H:%M:%S ");
-    printf("%-10s %-8d %-8d %-16s ", username, pid, curtask->parent->pid, comm);
-    $m = curtask->real_parent;
-        printf(" %-16s ", $m->comm);
-        $m = $m->parent;
-        if ($m == 0) {
-        }
-        printf("%16s %39s\n", probe, str(args->pathname));    
+    time("%Y-%m-%d %H:%M:%S "); 
+    $kn = (struct kernfs_node *)arg0;
+	printf(" %-8d %-16s ", pid, comm);
+    printf("%16s %s/%s/%s\n", probe, str($kn->parent->name), str($kn->name), str(arg1));
+}
+
+END {
+    printf("Stopping monitoring cgroup file/dir create or delete...\n");
 }
