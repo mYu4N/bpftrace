@@ -30,7 +30,9 @@ kprobe:kernfs_remove
     $kn = (struct kernfs_node *)arg0;
 	printf(" %-8d %-16s ", pid, comm);
     printf("%16s %s/%s/%s\n", probe, str($kn->parent->name), str($kn->name), str(arg1));
+	printf("%-39s ", kstack);
 }
+
 
 END {
     printf("Stopping monitoring cgroup file/dir create or delete...\n");
