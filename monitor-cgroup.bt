@@ -1,9 +1,5 @@
 #!/usr/bin/bpftrace
-#include <linux/sched.h>
-#include <linux/dcache.h>
-#include <linux/fs.h>
-#include <linux/pid_namespace.h>
-#include <linux/nsproxy.h>
+// # BPFTRACE_STRLEN=120 bpftrace cgroup_monitor.bt
 #include <linux/kernfs.h>
 
 
@@ -22,7 +18,17 @@ kprobe:__kernfs_create_file
 	$kn = (struct kernfs_node *)arg0;
     printf(" %-8d %-16s ", pid, comm);
     printf("%16s %s/%s/%s\n", probe, str($kn->parent->name), str($kn->name), str(arg1));
+	printf("%-39s ", kstack);
 }
+
+kprobe:kernfs_remove_by_name_ns 
+{
+    time("%Y-%m-%d %H:%M:%S "); 
+    $kn = (struct kernfs_node *)arg0;
+	printf(" %-8d %-16s ", pid, comm);
+    printf("%16s %s/%s/%s\n", probe, str($kn->parent->name), str($kn->name), str(arg1));
+}
+
 
 kprobe:kernfs_remove
 {
@@ -30,9 +36,17 @@ kprobe:kernfs_remove
     $kn = (struct kernfs_node *)arg0;
 	printf(" %-8d %-16s ", pid, comm);
     printf("%16s %s/%s/%s\n", probe, str($kn->parent->name), str($kn->name), str(arg1));
+}
+/*
+kprobe:cgroup_rmdir
+{
+    time("%Y-%m-%d %H:%M:%S "); 
+    $kn = (struct kernfs_node *)arg0;
+	printf(" %-8d %-16s ", pid, comm);
+    printf("%16s %s/%s/%s\n", probe, str($kn->parent->name), str($kn->name), str(arg1));
 	printf("%-39s ", kstack);
 }
-
+*/
 
 END {
     printf("Stopping monitoring cgroup file/dir create or delete...\n");
