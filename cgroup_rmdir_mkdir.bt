@@ -1,74 +1,21 @@
-注意，这里有2个实现方式，请不要全部copy 运行，只能提取到*.slice 提取不到/sys/fs/cgroup/cpu(memory)这种
+#!/usr/bin/bpftrace
+//export BPFTRACE_STRLEN=200;bpftrace monitor-cgroup.bt >>cg.log 2>&1
 
-第一个tracepoint
-#!/usr/bin/env bpftrace
+BEGIN
+{
+        printf("Trace cgroup create and delete... Hit Ctrl-C to end.\n");
+        printf("%-19s %-10s %-8s", "TIME", "PID", "COMM");
+        printf(" %-16s %s \n", "Probe","PATH/FNAME");
+}
 
+
+tracepoint:cgroup:cgroup_mkdir,
 tracepoint:cgroup:cgroup_rmdir
 {
-    @ppcomm=curtask->real_parent->real_parent->comm;
-    @pppid=curtask->real_parent->real_parent->pid;
-    @pcomm=curtask->real_parent->comm;
-    @ppid=curtask->real_parent->pid;
-    $path = str(args->path);
-    time("%H:%M:%S ");
-    printf(" cgroup_rmdir called by PID %d: %s\n",  pid, $path);
-    printf("pppppcomm: %s %d %s %d \n", @pcomm, @ppid, @ppcomm, @pppid);
-}
-tracepoint:cgroup:cgroup_mkdir
-{
-    @ppcomm=curtask->real_parent->real_parent->comm;
-    @pppid=curtask->real_parent->real_parent->pid;
-    @pcomm=curtask->real_parent->comm;
-    @ppid=curtask->real_parent->pid;
-    $path = str(args->path);
-    time("%H:%M:%S ");
-    printf(" cgroup_mkdir called by PID %d: %s\n",  pid, $path);
-    printf("pppppcomm: %s %d %s %d \n", @pcomm, @ppid, @ppcomm, @pppid);
+    time("%Y-%m-%d %H:%M:%S ");
+    printf (" %s \n root:%d level:%d id:%d path:%s\n", probe, args->root, args->level, args->id, str(args->path));
 }
 
-第二个 kprobe
-#!/usr/bin/env bpftrace
-#include <linux/kernfs.h>
-
-kprobe:cgroup_rmdir
-{
-  time("%Y-%m-%d %H:%M:%S");
-
-  $kn = (struct kernfs_node *)arg0;
-  $parent_kn = $kn->parent;
-
-  // 使用多个变量顺序存储路径的不同部分
-  $path1 = str($kn->name);
-  $path2 = "";
-  $path3 = "";
-  $path4 = "";
-  $path5 = "";
-  $path6 = "";
-
-  if ($parent_kn != 0) {
-    $path2 = str($parent_kn->name);
-    $parent_kn = $parent_kn->parent;
-  }
-
-  if ($parent_kn != 0) {
-    $path3 = str($parent_kn->name);
-    $parent_kn = $parent_kn->parent;
-  }
-
-  if ($parent_kn != 0) {
-    $path4 = str($parent_kn->name);
-    $parent_kn = $parent_kn->parent;
-  }
-  if ($parent_kn != 0) {
-    $path5 = str($parent_kn->name);
-    $parent_kn = $parent_kn->parent;
-  }
-
-  if ($parent_kn != 0) {
-    $path6 = str($parent_kn->name);
-    $parent_kn = $parent_kn->parent;
-  }
-
-
-  printf("cgroup_rmdir called by PID %d (%s): /%s/%s/%s/%s/%s/%s\n", pid, comm, $path6, $path5 $path4, $path3, $path2, $path1);
+END {
+    printf("Stopping monitoring cgroup dir create or delete...\n");
 }
