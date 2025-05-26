@@ -1,0 +1,33 @@
+#!/usr/bin/env bpftrace
+#include <linux/skbuff.h>
+#include <linux/ip.h>
+#include <linux/udp.h>
+
+BEGIN
+{
+  printf("Tracing UDP DNS Resolv. Hit Ctrl-C to end.\n");
+}
+
+kprobe:udp_sendmsg
+{
+  $sk = (struct sock *)arg0;
+  $inet_family = $sk->__sk_common.skc_family;
+  $daddr = ntop(0);
+  $saddr = ntop(0);
+  // 显式声明为 uint16,以修复bpftrace0.23的严格校验
+  $lport = (uint16)0;
+  $dport = (uint16)0;
+  if ($inet_family == AF_INET) {
+    $daddr = ntop($sk->__sk_common.skc_daddr);
+    $saddr = ntop($sk->__sk_common.skc_rcv_saddr);
+    $lport = $sk->__sk_common.skc_num;
+    $dport = $sk->__sk_common.skc_dport;
+    $dport = (uint16)(($dport >> 8) | (($dport << 8) & 0x00FF00));
+  }
+  time("%H:%M:%S ");
+  printf("%-16s %-8d %-8d %-10s ", func, pid, cpu, comm);
+  printf("%-10s:%-5d %-10s:%-5d ", $daddr, $dport, $saddr, $lport);
+  printf("%-39s ", kstack);
+  printf("\n");
+  return;
+}
