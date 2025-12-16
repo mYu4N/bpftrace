@@ -1,0 +1,79 @@
+#!/usr/bin/bpftrace
+
+#include <net/netfilter/nf_tables.h>
+#include <linux/ip.h>
+#include <linux/tcp.h>
+#include <linux/udp.h>
+#include <linux/skbuff.h>
+
+BEGIN
+{
+  printf("Time             PID     COMM             5TUPLE                                             TABLE/CHAIN\n");
+}
+
+kprobe:nft_do_chain,
+kprobe:nft_do_chain_ipv4,
+kprobe:nft_do_chain_inet,
+kprobe:nft_do_chain_inet_ingress,
+kprobe:nft_do_chain_bridge,
+kprobe:nft_do_chain_netdev,
+kprobe:nft_do_chain_arp
+{
+  $pkt   = (struct nft_pktinfo *)arg0;
+  $chain = (struct nft_chain *)arg1;
+  if ($pkt == 0 || $chain == 0 || $chain->table == 0) { return; }
+
+  $skb = $pkt->skb;
+  if ($skb == 0) { return; }
+
+  if (bswap($skb->protocol) != 0x0800) { return; } // only IPv4
+
+  $ip = (struct iphdr *)((uint64)$skb->head + $skb->network_header);
+  $proto = $ip->protocol;
+
+if ($proto == IPPROTO_TCP) {
+  $tcp = (struct tcphdr *)((uint64)$skb->head + $skb->transport_header);
+
+  $f =
+    ($tcp->fin ? 0x01 : 0) |
+    ($tcp->syn ? 0x02 : 0) |
+    ($tcp->rst ? 0x04 : 0) |
+    ($tcp->psh ? 0x08 : 0) |
+    ($tcp->ack ? 0x10 : 0) |
+    ($tcp->urg ? 0x20 : 0) |
+    ($tcp->ece ? 0x40 : 0) |
+    ($tcp->cwr ? 0x80 : 0);
+
+  $ftag = "T";
+  if ($f == 0x02) { $ftag = "T_S"; }          // SYN
+  else if ($f == 0x12) { $ftag = "T_SA"; }    // SYN,ACK
+  else if ($f == 0x10) { $ftag = "T_A"; }     // ACK
+  else if ($f == 0x18) { $ftag = "T_PA"; }    // PSH,ACK
+  else if ($f == 0x11) { $ftag = "T_FA"; }    // FIN,ACK
+  else if ($f == 0x01) { $ftag = "T_F"; }     // FIN
+  else if ($f == 0x04) { $ftag = "T_R"; }     // RST
+  else if ($f == 0x14) { $ftag = "T_RA"; }    // RST,ACK
+  else if ($f == 0x08) { $ftag = "T_P"; }     // PSH
+  else if ($f == 0x29) { $ftag = "T_FPU"; }   // FIN,PSH,URG (少见示例)
+
+  printf("[%-15s] %-7d %-16s %-4s %s:%u -> %s:%u  %s/%s\n",
+         strftime("%H:%M:%S.%f", nsecs), pid, comm,
+         $ftag,
+         ntop($ip->saddr), bswap($tcp->source),
+         ntop($ip->daddr), bswap($tcp->dest),
+         str($chain->table->name), str($chain->name));
+  } else if ($proto == IPPROTO_UDP) {
+    $udp = (struct udphdr *)((uint64)$skb->head + $skb->transport_header);
+
+    printf("[%-15s] %-7d %-16s UDP %s:%u -> %s:%u  %s/%s\n",
+           strftime("%H:%M:%S.%f", nsecs), pid, comm,
+           ntop($ip->saddr), bswap($udp->source),
+           ntop($ip->daddr), bswap($udp->dest),
+           str($chain->table->name), str($chain->name));
+  } else {
+    printf("[%-15s] %-7d %-16s P=%u %s -> %s  %s/%s\n",
+           strftime("%H:%M:%S.%f", nsecs), pid, comm,
+           $proto, ntop($ip->saddr), ntop($ip->daddr),
+           str($chain->table->name), str($chain->name));
+  }
+}
